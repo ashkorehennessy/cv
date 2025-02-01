@@ -7,9 +7,10 @@ execute_process(
         OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 set(EXECUTABLE_NAME cv)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 add_definitions(-DHTTP_STREAM)
+add_definitions(-DOVERWRITE_LOG)
 if(WIN32)
     set(OPENCV_MAP_IMPORTED_CONFIG "")
     set(OpenCV_DIR ${CMAKE_SOURCE_DIR}/lib/windows-x64/opencv-mobile/x64/vc17/staticlib)
