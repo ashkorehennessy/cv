@@ -42,8 +42,6 @@ namespace {
     std::unique_ptr<std::ofstream> g_log_file;
     std::string g_log_path = "cv.log"; // 默认日志路径
 
-    // 信号处理标记
-    volatile sig_atomic_t g_signal_received = 0;
 }
 
 // 获取当前时间字符串
@@ -92,22 +90,8 @@ void log_consumer_thread() {
     }
 }
 
-// 信号处理
-void signal_handler(int sig) {
-    g_signal_received = sig;
-    g_log_running = false; // 触发日志线程退出
-}
-
 // 日志系统初始化
 bool log_init(const std::string& path) {
-    // 注册信号处理
-    struct sigaction sa;
-    sa.sa_handler = signal_handler;
-    sa.sa_flags = 0;
-    sigemptyset(&sa.sa_mask);
-
-    sigaction(SIGINT, &sa, nullptr);
-    sigaction(SIGTERM, &sa, nullptr);
 
     // 打开日志文件
     g_log_file = std::make_unique<std::ofstream>();

@@ -9,7 +9,6 @@
 #include <string>
 #include <thread>
 #include <chrono>
-#include <csignal>
 #include <fstream>
 #include <sys/time.h>
 #include <cstdarg>
