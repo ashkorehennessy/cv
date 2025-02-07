@@ -7,6 +7,7 @@ std::atomic<bool> running{true};      // 控制线程运行标志
 cv::Mat frame;
 void* realtime_task(void* arg) {
     // 设置实时线程优先级
+    auto vofa = VOFA("192.168.1.16", 1349);
     struct sched_param param = {.sched_priority = 99};
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
 
@@ -52,6 +53,7 @@ void* realtime_task(void* arg) {
                 fprintf(stdout,"timer_event 定时器周期不准确，误差: %.2lfms\n", time_used.count() * 1000 - timer_period);
                 LOGW("timer_event", "定时器周期不准确，误差: %.2lfms", time_used.count() * 1000 - timer_period);
             }
+            vofa.printf("aaa:1.234,2.345,3.456,4.567,5.678,6.789,7.890,8.901,9.012,10.123,11.234,12.345,13.456,14.567,15.678,16.789,17.890,18.901\n");
         }
     }
 
@@ -94,8 +96,7 @@ void *non_realtime_task(void *arg) {
             });
             MEASURE_TIME("http write", {
 //                http << frame_data.frame;
-                vofa.printf("id:%d,%.2f\n", id, distance);
-                vofa.imwrite(my_frame, 0);
+                vofa.imwrite(my_frame);
             });
     }
     return nullptr;

@@ -38,10 +38,10 @@ void VOFA::printf(const char *format, ...) {
     sendto(sockfd, buffer, strlen(buffer), 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
 }
 
-void VOFA::imwrite(const std::vector<uchar> &jpg, int vofa_id) {
+void VOFA::imwrite(const std::vector<uchar> &jpg) {
     char image_header[128];
     unsigned int img_size = jpg.size();
-    int img_id = vofa_id;
+    int img_id = 0;
     snprintf(image_header, sizeof(image_header),
              "\nimage:%d,%u,%d,%d,%d\n",
              img_id, img_size, -1, -1, static_cast<int>(VOFAImgFormat::Format_JPG));
@@ -60,7 +60,7 @@ void VOFA::imwrite(const std::vector<uchar> &jpg, int vofa_id) {
     }
 }
 
-void VOFA::imwrite(const cv::Mat &frame, int vofa_id) {
+void VOFA::imwrite(const cv::Mat &frame) {
     int img_format;
     switch (frame.type()) {
         case CV_8UC1:
@@ -78,7 +78,7 @@ void VOFA::imwrite(const cv::Mat &frame, int vofa_id) {
     }
     char image_header[128];
     unsigned int img_size = frame.total() * frame.elemSize(); // 计算字节数
-    int img_id = vofa_id;
+    int img_id = 0;
     int img_width = frame.cols;
     int img_height = frame.rows;
     snprintf(image_header, sizeof(image_header),
@@ -100,12 +100,12 @@ void VOFA::imwrite(const cv::Mat &frame, int vofa_id) {
 }
 
 VOFA &VOFA::operator<<(const cv::Mat &frame) {
-    imwrite(frame, 1);
+    imwrite(frame);
     return *this;
 }
 
 VOFA &VOFA::operator<<(const std::vector<uchar> &jpg) {
-    imwrite(jpg, 1);
+    imwrite(jpg);
     return *this;
 }
 

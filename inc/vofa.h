@@ -52,8 +52,8 @@ class VOFA {
 public:
     VOFA(const char *vofa_ip, int vofa_port);
     ~VOFA();
-    void imwrite(const cv::Mat &frame, int vofa_id);
-    void imwrite(const std::vector<uchar> &jpg, int vofa_id);
+    void imwrite(const cv::Mat &frame);
+    void imwrite(const std::vector<uchar> &jpg);
     void printf(const char* format, ...);
     VOFA& operator<<(const cv::Mat& frame);
     VOFA& operator<<(const std::vector<uchar> &jpg);
