@@ -1,10 +1,10 @@
 #include "main.h"
 #include "mytag.h"
 #include "log.h"
-const int timer_period = 35;  // 定时器周期(ms)
-const int BUFFER_SIZE = 5;
-RingBuffer frame_buffer(BUFFER_SIZE); // 环形缓冲区
+#include "vofa.h"
+const int timer_period = 50;  // 定时器周期(ms)
 std::atomic<bool> running{true};      // 控制线程运行标志
+cv::Mat frame;
 void* realtime_task(void* arg) {
     // 设置实时线程优先级
     struct sched_param param = {.sched_priority = 99};
@@ -39,15 +39,9 @@ void* realtime_task(void* arg) {
             uint64_t expirations;
             read(timer_fd, &expirations, sizeof(expirations));
 
-            // 模拟任务
-            FrameData new_frame;
-            cap >> new_frame.frame;                                       // 读取图像
+            cap >> frame;                                       // 读取图像
             // 其他操作
 
-            // 将数据推入缓冲区
-            if (!frame_buffer.push(new_frame)) {
-                LOGW("timer_event", "Buffer full, dropping frame!");
-            }
 
             end = std::chrono::steady_clock::now();
             std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
@@ -68,17 +62,19 @@ void* realtime_task(void* arg) {
 
 // 非实时任务线程函数
 void *non_realtime_task(void *arg) {
-    cv::VideoWriter http;
-    http.open("httpjpg", 7766);
+//    cv::VideoWriter http;
+//    http.open("httpjpg", 7766);
+    auto vofa = VOFA("192.168.1.16", 1347);
     auto atag = mytag("tag36h11", 1.5, 0, 1, false, false);
     int id;
+    cv::Mat my_frame;
     cv::Mat gray;
     double distance;
+    std::vector<uchar> jpg;
     while (running) {
-        FrameData frame_data;
-        if (frame_buffer.pop(frame_data)) {
+            frame.copyTo(my_frame);
             MEASURE_TIME("convert gray", {
-                cvtColor(frame_data.frame, gray, cv::COLOR_BGR2GRAY);
+                cvtColor(my_frame, gray, cv::COLOR_BGR2GRAY);
             });
             MEASURE_TIME("detect_time", {
                 atag.detect(gray);
@@ -87,21 +83,20 @@ void *non_realtime_task(void *arg) {
                 atag.getClosetTagIndex();
             });
             MEASURE_TIME("draw", {
-                atag.draw(frame_data.frame);
+                atag.draw(my_frame);
             });
             MEASURE_TIME("getid", {
                 id = atag.getClosetTagID();
             });
             MEASURE_TIME("getdistance", {
                 distance = atag.getClosetTagDistance(1500);
-                cv::putText(frame_data.frame, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
+                cv::putText(my_frame, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
             });
             MEASURE_TIME("http write", {
-                http << frame_data.frame;
+//                http << frame_data.frame;
+                vofa.printf("id:%d,%.2f\n", id, distance);
+                vofa.imwrite(my_frame, 0);
             });
-        } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1)); // 缓冲区空，短暂等待
-        }
     }
     return nullptr;
 }
@@ -118,14 +113,13 @@ int main()
     pthread_t rt_thread;
     pthread_t nrt_thread;
     pthread_create(&rt_thread, nullptr, realtime_task, nullptr);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // 运行10秒
     pthread_create(&nrt_thread, nullptr, non_realtime_task, nullptr);
 
-    std::this_thread::sleep_for(std::chrono::seconds(10)); // 运行10秒
+    std::this_thread::sleep_for(std::chrono::seconds(100)); // 运行10秒
 
     running = false; // 停止线程
 
     // 等待线程结束
     log_shutdown();
-    pthread_join(rt_thread, nullptr);
-    pthread_join(nrt_thread, nullptr);
 }
