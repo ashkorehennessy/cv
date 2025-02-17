@@ -2,7 +2,7 @@
 #include "mytag.h"
 #include "log.h"
 #include "vofa.h"
-const int timer_period = 50;  // 定时器周期(ms)
+const int timer_period = 5;  // 定时器周期(ms)
 std::atomic<bool> running{true};      // 控制线程运行标志
 cv::Mat frame;
 void* realtime_task(void* arg) {
@@ -10,6 +10,11 @@ void* realtime_task(void* arg) {
     auto vofa = VOFA("192.168.1.16", 1349);
     struct sched_param param = {.sched_priority = 99};
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(0, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
     // 创建高精度定时器
     int timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
@@ -40,8 +45,7 @@ void* realtime_task(void* arg) {
             uint64_t expirations;
             read(timer_fd, &expirations, sizeof(expirations));
 
-            cap >> frame;                                       // 读取图像
-            // 其他操作
+            frame = cv::Mat::zeros(120, 160, CV_8UC3);
 
 
             end = std::chrono::steady_clock::now();
@@ -67,7 +71,9 @@ void *non_realtime_task(void *arg) {
 //    cv::VideoWriter http;
 //    http.open("httpjpg", 7766);
     auto vofa = VOFA("192.168.1.16", 1347);
-    auto atag = mytag("tag36h11", 1.5, 0, 1, false, false);
+    cv::VideoWriter http;
+    http.open("httpjpg",7766);
+    auto atag = mytag("tag36h11", 0.5, 0, 1, false, false);
     int id;
     cv::Mat my_frame;
     cv::Mat gray;
@@ -75,29 +81,29 @@ void *non_realtime_task(void *arg) {
     std::vector<uchar> jpg;
     while (running) {
             frame.copyTo(my_frame);
-            MEASURE_TIME("convert gray", {
+//            MEASURE_TIME("convert gray", {
                 cvtColor(my_frame, gray, cv::COLOR_BGR2GRAY);
-            });
-            MEASURE_TIME("detect_time", {
+//            });
+//            MEASURE_TIME("detect_time", {
                 atag.detect(gray);
-            });
-            MEASURE_TIME("getclosettagindex", {
+//            });
+//            MEASURE_TIME("getclosettagindex", {
                 atag.getClosetTagIndex();
-            });
-            MEASURE_TIME("draw", {
+//            });
+//            MEASURE_TIME("draw", {
                 atag.draw(my_frame);
-            });
-            MEASURE_TIME("getid", {
+//            });
+//            MEASURE_TIME("getid", {
                 id = atag.getClosetTagID();
-            });
-            MEASURE_TIME("getdistance", {
+//            });
+//            MEASURE_TIME("getdistance", {
                 distance = atag.getClosetTagDistance(1500);
                 cv::putText(my_frame, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
-            });
-            MEASURE_TIME("http write", {
-//                http << frame_data.frame;
-                vofa.imwrite(my_frame);
-            });
+//            });
+//            MEASURE_TIME("http write", {
+                // vofa.imwrite(my_frame);
+                http << my_frame;
+//            });
     }
     return nullptr;
 }
@@ -121,6 +127,5 @@ int main()
 
     running = false; // 停止线程
 
-    // 等待线程结束
     log_shutdown();
 }
