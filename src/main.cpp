@@ -2,6 +2,8 @@
 #include "mytag.h"
 #include "log.h"
 #include "vofa.h"
+#include <csignal>
+volatile sig_atomic_t g_signal_received = 0;
 const int timer_period = 10;  // 定时器周期(ms)
 std::atomic<bool> running{true};      // 控制线程运行标志
 cv::Mat frame;
@@ -112,9 +114,22 @@ void *non_realtime_task(void *arg) {
     return nullptr;
 }
 
+void signal_handler(int sig) {
+    g_signal_received = sig;
+    running = false;
+    log_shutdown();
+}
 
 int main()
 {
+    // 注册信号处理
+    struct sigaction sa;
+    sa.sa_handler = signal_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
     if(!log_init("app.logcat")) {
         return 1;
     }
