@@ -2,12 +2,13 @@
 #include "mytag.h"
 #include "log.h"
 #include "vofa.h"
-const int timer_period = 5;  // 定时器周期(ms)
+const int timer_period = 10;  // 定时器周期(ms)
 std::atomic<bool> running{true};      // 控制线程运行标志
 cv::Mat frame;
+uint8_t image[120][160];
 void* realtime_task(void* arg) {
     // 设置实时线程优先级
-    auto vofa = VOFA("192.168.1.16", 1349);
+    auto vofa = VOFA("192.168.5.194", 1349);
     struct sched_param param = {.sched_priority = 99};
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
 
@@ -35,6 +36,7 @@ void* realtime_task(void* arg) {
     cv::VideoCapture cap;
     cap.set(cv::CAP_PROP_FRAME_WIDTH, 160);
     cap.set(cv::CAP_PROP_FRAME_HEIGHT, 120);
+    cap.set(cv::CAP_PROP_FPS, 120);
     cap.open(0);
 
     while (running) {
@@ -45,7 +47,7 @@ void* realtime_task(void* arg) {
             uint64_t expirations;
             read(timer_fd, &expirations, sizeof(expirations));
 
-            frame = cv::Mat::zeros(120, 160, CV_8UC3);
+            cap >> frame;
 
 
             end = std::chrono::steady_clock::now();
@@ -57,7 +59,9 @@ void* realtime_task(void* arg) {
                 fprintf(stdout,"timer_event 定时器周期不准确，误差: %.2lfms\n", time_used.count() * 1000 - timer_period);
                 LOGW("timer_event", "定时器周期不准确，误差: %.2lfms", time_used.count() * 1000 - timer_period);
             }
-            vofa.printf("aaa:1.234,2.345,3.456,4.567,5.678,6.789,7.890,8.901,9.012,10.123,11.234,12.345,13.456,14.567,15.678,16.789,17.890,18.901\n");
+            memcpy(image, frame.data, 120 * 160);
+            uint8_t pixel_value = image[60][80];
+            vofa.printf("aaa:%d\n",pixel_value);
         }
     }
 
@@ -70,7 +74,7 @@ void* realtime_task(void* arg) {
 void *non_realtime_task(void *arg) {
 //    cv::VideoWriter http;
 //    http.open("httpjpg", 7766);
-    auto vofa = VOFA("192.168.1.16", 1347);
+    auto vofa = VOFA("192.168.5.194", 1347);
     cv::VideoWriter http;
     http.open("httpjpg",7766);
     auto atag = mytag("tag36h11", 0.5, 0, 1, false, false);
@@ -101,8 +105,8 @@ void *non_realtime_task(void *arg) {
                 cv::putText(my_frame, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
 //            });
 //            MEASURE_TIME("http write", {
-                // vofa.imwrite(my_frame);
-                http << my_frame;
+                vofa.imwrite(my_frame);
+                // http << my_frame;
 //            });
     }
     return nullptr;
@@ -116,14 +120,14 @@ int main()
     }
     LOGW("MAIN", "Application starting...");
 
-    // 创建线程
+    // 创建posix线程
     pthread_t rt_thread;
     pthread_t nrt_thread;
     pthread_create(&rt_thread, nullptr, realtime_task, nullptr);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // 运行10秒
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // 运行1秒
     pthread_create(&nrt_thread, nullptr, non_realtime_task, nullptr);
 
-    std::this_thread::sleep_for(std::chrono::seconds(100)); // 运行10秒
+    std::this_thread::sleep_for(std::chrono::seconds(100)); // 运行100秒
 
     running = false; // 停止线程
 
