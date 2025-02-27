@@ -13,6 +13,7 @@ volatile sig_atomic_t g_signal_received = 0;
 const int timer_period = 10;  // 定时器周期(ms)
 std::atomic<bool> running{true};      // 控制线程运行标志
 cv::Mat frame;
+cv::Mat result_image;
 uchar image[120][160];
 auto udp_transport = std::make_unique<TCPTransport>("0.0.0.0", 1347);
 auto vofa = VOFA(std::move(udp_transport));
@@ -54,6 +55,7 @@ void* realtime_task(void* arg) {
     cap.set(cv::CAP_PROP_FPS, 120);
     cap.open(0);
     cv::Mat myframe;
+    result_image = cv::Mat(60, 80, CV_8UC1);
     while (running) {
         // 等待定时器事件
         struct epoll_event events[1];
@@ -82,15 +84,17 @@ void* realtime_task(void* arg) {
             memcpy((uint8_t *) binary_image, (const uint8_t *) contrast_image, 80 * 60);
             my_cv2_doubleThreshold((uint8_t *) binary_image, 80, 0, 0, 80, 60, canny_lowThreshold, canny_highThreshold);
             my_cv2_checkConnectivity((uint8_t *) binary_image, 80, 0, 0, 80, 60);
-            my_cv2_threshold((uint8_t *) binary_image, 80, 0, 0, 80, 60, 127, 255);
-
-            vofa.imwrite((uint8_t *)binary_image, 80, 60);
+            my_cv2_threshold((uint8_t *) binary_image, 80, 0, 0, 80, 60, 127, 1);
+            memcpy((uint8_t *) gray_binary_image, (const uint8_t *) gray_image, 80 * 60);
+            my_cv2_threshold((uint8_t *) gray_binary_image, 80, 0, 0, 80, 60, 128, 1);
+            // vofa.imwrite((uint8_t *)gray_binary_image, 80, 60);
+            memcpy(result_image.data, gray_image, 80 * 60);
             bottom_start_end_x_get();
 
             get_max_middle_line_height();
 
             incision = incision_max;
-            max_white_column_get(bottom_start_x > 15 ? bottom_start_x : 15, 1, bottom_end_x < 79 ? bottom_end_x : 79 , 44);
+            max_white_column_get(bottom_start_x > 15 ? bottom_start_x : 15, 1, bottom_end_x < 64 ? bottom_end_x : 64 , 59);
 
             get_distance_line();
             get_lost_count();
@@ -103,7 +107,7 @@ void* realtime_task(void* arg) {
             check_garage_and_obstacle();
             draw_rectan();
             int detect_count_max = get_border_line(80);
-            vofa.printf(":%d,%d\n", detect_count_max,middle_line[2][0]);
+            vofa.printf(":%d,%d\n", bottom_start_x,bottom_end_x);
             // vofa.imwrite((uint8_t *)contrast_image, 80, 60);
         }
     }
@@ -144,11 +148,15 @@ void *non_realtime_task(void *arg) {
 //            });
 //            MEASURE_TIME("getdistance", {
                 distance = atag.getClosetTagDistance(1500);
-                cv::putText(my_frame, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
+                cv::putText(result_image, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
 //            });
-                // tft180_draw_border_line(my_frame, 0, 0, left_border, 0xff);
+                cv::Mat gray3ch;
+                cv::merge(std::vector<cv::Mat>{result_image, result_image, result_image}, gray3ch);
+                tft180_draw_border_line(gray3ch, 0, 0, left_border, cv::Vec3b(0,255,0));
+                tft180_draw_border_line(gray3ch, 0, 0, right_border, cv::Vec3b(0,255,0));
+                tft180_draw_border_line(gray3ch, 0, 0, middle_line, cv::Vec3b(0,0,255));
             // MEASURE_TIME("http write", {
-                // vofa.imwrite(my_frame);
+                vofa.imwrite(gray3ch);
                 // http << my_frame;
             // });
     }
