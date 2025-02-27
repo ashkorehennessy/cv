@@ -10,7 +10,8 @@ cv::Mat frame;
 uint8_t image[120][160];
 void* realtime_task(void* arg) {
     // 设置实时线程优先级
-    auto vofa = VOFA("0.0.0.0", 1349);
+    auto udp_transport = std::make_unique<TCPTransport>("127.0.0.1", 1349);
+    auto vofa = VOFA(std::move(udp_transport));
     struct sched_param param = {.sched_priority = 99};
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
 
@@ -36,8 +37,8 @@ void* realtime_task(void* arg) {
     std::chrono::steady_clock::time_point end;
 
     cv::VideoCapture cap;
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, 160);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 120);
     cap.set(cv::CAP_PROP_FPS, 120);
     cap.open(0);
 
@@ -75,8 +76,9 @@ void* realtime_task(void* arg) {
 // 非实时任务线程函数
 void *non_realtime_task(void *arg) {
 //    cv::VideoWriter http;
-//    http.open("httpjpg", 7766);
-    auto vofa = VOFA("0.0.0.0", 1347);
+    //    http.open("httpjpg", 7766);
+    auto udp_transport = std::make_unique<TCPTransport>("127.0.0.1", 1347);
+    auto vofa = VOFA(std::move(udp_transport));
     cv::VideoWriter http;
     http.open("httpjpg",7766);
     auto atag = mytag("tag36h11", 0.5, 0, 1, false, false);
@@ -106,10 +108,10 @@ void *non_realtime_task(void *arg) {
                 distance = atag.getClosetTagDistance(1500);
                 cv::putText(my_frame, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
 //            });
-//            MEASURE_TIME("http write", {
+            MEASURE_TIME("http write", {
                 vofa.imwrite(my_frame);
                 // http << my_frame;
-//            });
+            });
     }
     return nullptr;
 }
