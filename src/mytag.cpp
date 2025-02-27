@@ -81,7 +81,7 @@ void mytag::detect(const cv::Mat& gray) {
     // 将OpenCV图像转换为AprilTag所需的格式
     image_u8_t im = {
         .width = gray.cols,
-        .height = gray.rows,
+        .height = gray.rows / 3,
         .stride = gray.cols,
         .buf = gray.data
     };

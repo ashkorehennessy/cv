@@ -3,15 +3,21 @@
 #include "log.h"
 #include "vofa.h"
 #include <csignal>
+#include <my_cv2.h>
+
+#include "image_process.h"
+int cornering;
+int image_diff;
+int force_roundabout;
 volatile sig_atomic_t g_signal_received = 0;
 const int timer_period = 10;  // 定时器周期(ms)
 std::atomic<bool> running{true};      // 控制线程运行标志
 cv::Mat frame;
-uint8_t image[120][160];
+uchar image[120][160];
+auto udp_transport = std::make_unique<TCPTransport>("0.0.0.0", 1347);
+auto vofa = VOFA(std::move(udp_transport));
 void* realtime_task(void* arg) {
     // 设置实时线程优先级
-    auto udp_transport = std::make_unique<TCPTransport>("127.0.0.1", 1349);
-    auto vofa = VOFA(std::move(udp_transport));
     struct sched_param param = {.sched_priority = 99};
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
 
@@ -36,12 +42,18 @@ void* realtime_task(void* arg) {
     std::chrono::steady_clock::time_point start;
     std::chrono::steady_clock::time_point end;
 
+    int bottom_threshold = 100;
+    int contrast_threshold = 20;
+    int canny_lowThreshold = 16;
+    int canny_highThreshold = 40;
+    int incision = 6;
+    int incision_max = 6;
     cv::VideoCapture cap;
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, 160);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 120);
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, 320);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 240);
     cap.set(cv::CAP_PROP_FPS, 120);
     cap.open(0);
-
+    cv::Mat myframe;
     while (running) {
         // 等待定时器事件
         struct epoll_event events[1];
@@ -62,9 +74,37 @@ void* realtime_task(void* arg) {
                 fprintf(stdout,"timer_event 定时器周期不准确，误差: %.2lfms\n", time_used.count() * 1000 - timer_period);
                 LOGW("timer_event", "定时器周期不准确，误差: %.2lfms", time_used.count() * 1000 - timer_period);
             }
-            memcpy(image, frame.data, 120 * 160);
-            uint8_t pixel_value = image[60][80];
-            vofa.printf("aaa:%d\n",pixel_value);
+            frame.copyTo(myframe);
+            cv::extractChannel(myframe, myframe, 0);  // 提取灰度图像
+            cv::resize(myframe, myframe, cv::Size(80,60));
+            memcpy(gray_image, myframe.data, 80 * 60);
+            calculate_contrast_x8((uint8_t *)contrast_image, (const uint8_t *)gray_image, 80, 60);
+            memcpy((uint8_t *) binary_image, (const uint8_t *) contrast_image, 80 * 60);
+            my_cv2_doubleThreshold((uint8_t *) binary_image, 80, 0, 0, 80, 60, canny_lowThreshold, canny_highThreshold);
+            my_cv2_checkConnectivity((uint8_t *) binary_image, 80, 0, 0, 80, 60);
+            my_cv2_threshold((uint8_t *) binary_image, 80, 0, 0, 80, 60, 127, 255);
+
+            vofa.imwrite((uint8_t *)binary_image, 80, 60);
+            bottom_start_end_x_get();
+
+            get_max_middle_line_height();
+
+            incision = incision_max;
+            max_white_column_get(bottom_start_x > 15 ? bottom_start_x : 15, 1, bottom_end_x < 79 ? bottom_end_x : 79 , 44);
+
+            get_distance_line();
+            get_lost_count();
+            check_garage_and_obstacle();
+
+            check_ramp();
+            check_crossroad();
+            check_roundabout();
+            get_narrow_line();
+            check_garage_and_obstacle();
+            draw_rectan();
+            int detect_count_max = get_border_line(80);
+            vofa.printf(":%d,%d\n", detect_count_max,middle_line[2][0]);
+            // vofa.imwrite((uint8_t *)contrast_image, 80, 60);
         }
     }
 
@@ -77,11 +117,9 @@ void* realtime_task(void* arg) {
 void *non_realtime_task(void *arg) {
 //    cv::VideoWriter http;
     //    http.open("httpjpg", 7766);
-    auto udp_transport = std::make_unique<TCPTransport>("127.0.0.1", 1347);
-    auto vofa = VOFA(std::move(udp_transport));
     cv::VideoWriter http;
     http.open("httpjpg",7766);
-    auto atag = mytag("tag36h11", 0.5, 0, 1, false, false);
+    auto atag = mytag("tag36h11", 1, 0, 1, false, false);
     int id;
     cv::Mat my_frame;
     cv::Mat gray;
@@ -92,15 +130,15 @@ void *non_realtime_task(void *arg) {
 //            MEASURE_TIME("convert gray", {
                 cvtColor(my_frame, gray, cv::COLOR_BGR2GRAY);
 //            });
-//            MEASURE_TIME("detect_time", {
+            // MEASURE_TIME("detect_time", {
                 atag.detect(gray);
-//            });
+            // });
 //            MEASURE_TIME("getclosettagindex", {
                 atag.getClosetTagIndex();
 //            });
 //            MEASURE_TIME("draw", {
                 atag.draw(my_frame);
-//            });
+//            });detect_count_max:
 //            MEASURE_TIME("getid", {
                 id = atag.getClosetTagID();
 //            });
@@ -108,10 +146,11 @@ void *non_realtime_task(void *arg) {
                 distance = atag.getClosetTagDistance(1500);
                 cv::putText(my_frame, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
 //            });
-            MEASURE_TIME("http write", {
-                vofa.imwrite(my_frame);
+                // tft180_draw_border_line(my_frame, 0, 0, left_border, 0xff);
+            // MEASURE_TIME("http write", {
+                // vofa.imwrite(my_frame);
                 // http << my_frame;
-            });
+            // });
     }
     return nullptr;
 }
