@@ -10,7 +10,7 @@ cv::Mat frame;
 uint8_t image[120][160];
 void* realtime_task(void* arg) {
     // 设置实时线程优先级
-    auto vofa = VOFA("192.168.5.194", 1349);
+    auto vofa = VOFA("0.0.0.0", 1349);
     struct sched_param param = {.sched_priority = 99};
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
 
@@ -36,8 +36,8 @@ void* realtime_task(void* arg) {
     std::chrono::steady_clock::time_point end;
 
     cv::VideoCapture cap;
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, 160);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 120);
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
     cap.set(cv::CAP_PROP_FPS, 120);
     cap.open(0);
 
@@ -76,7 +76,7 @@ void* realtime_task(void* arg) {
 void *non_realtime_task(void *arg) {
 //    cv::VideoWriter http;
 //    http.open("httpjpg", 7766);
-    auto vofa = VOFA("192.168.5.194", 1347);
+    auto vofa = VOFA("0.0.0.0", 1347);
     cv::VideoWriter http;
     http.open("httpjpg",7766);
     auto atag = mytag("tag36h11", 0.5, 0, 1, false, false);
