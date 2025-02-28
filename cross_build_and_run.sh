@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ip="192.168.5.72"
+ip="192.168.5.181"
 username="loongson"
 toolchain_path="loongarch64-linux-gnu-"
 
@@ -11,11 +11,8 @@ if [ ! -f "CMakeLists.txt" ]; then
 fi
 
 BUILD_DIR="cmake-build-cross"
-
-# 创建构建目录（如果不存在）
-if [ ! -d "$BUILD_DIR" ]; then
-    mkdir "$BUILD_DIR"
-fi
+rm -rf "$BUILD_DIR"
+mkdir "$BUILD_DIR"
 
 # 运行 CMake 配置
 echo "Configuring project with CMake..."
@@ -33,4 +30,4 @@ cp "$BUILD_DIR/$build_name" .
 echo "Uploading :scp $build_name $username@$ip:/home/$username"
 scp $build_name $username@$ip:/home/$username
 echo "Running :ssh $username@$ip ./$build_name"
-ssh $username@$ip "sudo ./$build_name"
+ssh -t $username@$ip "sudo ./$build_name"

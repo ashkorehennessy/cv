@@ -9,6 +9,8 @@
 #include "rev_perspective.h"
 #include "counter.h"
 #include <ctgmath>
+#include <vofa.h>
+
 #include "config.h"
 #include "opencv2/opencv.hpp"
 
@@ -73,7 +75,7 @@ int bottom_end_x_pers;
 int t1,t2;
 
 uint8_t road_color = 0;  // 道路颜色
-uint8_t border_color = 1;  // 边界颜色
+uint8_t border_color = 255;  // 边界颜色
 
 Max_White_Column max_white_column;  // 最大白色列
 Max_White_Column max_white_column_pers;
@@ -91,7 +93,7 @@ int right_lost_dir;
 extern int cornering;
 extern int image_diff;
 extern int force_roundabout;
-
+extern VOFA vofa_udp;
 void bottom_start_end_x_get(){
     int maxStartIndex = -1;
     int maxEndIndex = -1;
@@ -100,7 +102,7 @@ void bottom_start_end_x_get(){
     int maxLength = 0;
     int currentLength = 0;
     for (int i = 0; i < 80; i++) {
-        if (gray_binary_image[58][i] == 1) {
+        if (gray_binary_image[58][i] == 255) {
             if (currentStartIndex == -1) {
                 currentStartIndex = i;
             }
@@ -126,8 +128,8 @@ void bottom_start_end_x_get_pers(){
     int currentEndIndex = -1;
     int maxLength = 0;
     int currentLength = 0;
-    for (int i = 0; i < 47; i++) {
-        if (gray_binary_pers_image[38][i] == 1) {
+    for (int i = 0; i < 40; i++) {
+        if (gray_binary_pers_image[38][i] == 255) {
             if (currentStartIndex == -1) {
                 currentStartIndex = i;
             }
@@ -190,7 +192,7 @@ void max_white_column_get(int16_t x1, int16_t y1, int16_t x2, int16_t y2){
         for (i = x1; i < x2; i++) {
             int16_t white_count = 0;
             for (j = y2; j >= y1; j--) {
-                if (gray_binary_image[j][i] == 1) {
+                if (gray_binary_image[j][i] == 255) {
                     white_count++;
                 } else {
                     break;
@@ -207,7 +209,7 @@ void max_white_column_get(int16_t x1, int16_t y1, int16_t x2, int16_t y2){
         for (i = x2; i > x1; i--) {
             int16_t white_count = 0;
             for (j = y2; j >= y1; j--) {
-                if (gray_binary_image[j][i] == 1) {
+                if (gray_binary_image[j][i] == 255) {
                     white_count++;
                 } else {
                     break;
@@ -444,9 +446,9 @@ void erase_top_left_road(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2){
     float b = y1 - slope * x1;
     for(int i = y1; i < y2; i++){
         int x_end = (i - b) / slope;
-        binary_image[i][x_end - 2] = 1;
-        binary_image[i][x_end - 1] = 1;
-        binary_image[i][x_end] = 1;
+        binary_image[i][x_end - 2] = 255;
+        binary_image[i][x_end - 1] = 255;
+        binary_image[i][x_end] = 255;
     }
 }
 
@@ -457,27 +459,27 @@ void erase_top_right_road(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2){
     float b = y1 - slope * x1;
     for(int i = y1; i < y2; i++){
         int x_start = (i - b) / slope;
-        binary_image[i][x_start] = 1;
-        binary_image[i][x_start + 1] = 1;
-        binary_image[i][x_start + 2] = 1;
+        binary_image[i][x_start] = 255;
+        binary_image[i][x_start + 1] = 255;
+        binary_image[i][x_start + 2] = 255;
     }
 }
 
 void fix_left_break(uint16_t y1, uint16_t y2){
     for(int i = y1; i < y2; i++){
         int x_end = right_distance_line[i][0] - road_distances[i];
-        binary_image[60 - i][x_end - 2] = 1;
-        binary_image[60 - i][x_end - 1] = 1;
-        binary_image[60 - i][x_end] = 1;
+        binary_image[60 - i][x_end - 2] = 255;
+        binary_image[60 - i][x_end - 1] = 255;
+        binary_image[60 - i][x_end] = 255;
     }
 }
 
 void fix_right_break(uint16_t y1, uint16_t y2){
     for(int i = y1; i < y2; i++){
         int x_start = left_distance_line[i][0] + road_distances[i];
-        binary_image[60 - i][x_start] = 1;
-        binary_image[60 - i][x_start + 1] = 1;
-        binary_image[60 - i][x_start + 2] = 1;
+        binary_image[60 - i][x_start] = 255;
+        binary_image[60 - i][x_start + 1] = 255;
+        binary_image[60 - i][x_start + 2] = 255;
     }
 }
 
@@ -615,7 +617,7 @@ void get_distance_line(){
     lost_y2 = 0;
     for(int y = max_white_column.start_y - 1; y >= max_white_column.end_y; y--){
         for(int x = left_x; x >= 0; x--) {
-            if (binary_image_bak[y][x] == 1 || x == 1) {
+            if (binary_image_bak[y][x] == 255 || x == 1) {
                 left_distance_line[distance_index][0] = x;
                 left_distance_line[distance_index][1] = y;
                 left_distance[distance_index][0] = left_x - x;
@@ -624,7 +626,7 @@ void get_distance_line(){
             }
         }
         for(int x = right_x; x < 80; x++) {
-            if (binary_image_bak[y][x] == 1 || x == 79) {
+            if (binary_image_bak[y][x] == 255 || x == 79) {
                 right_distance_line[distance_index][0] = x;
                 right_distance_line[distance_index][1] = y;
                 right_distance[distance_index][0] = x - right_x;
@@ -664,7 +666,7 @@ void get_distance_line_pers(){
     distance_middle_line_index_pers = 0;
     for(int y = max_white_column_pers.start_y - 1; y >= max_white_column_pers.end_y; y--){
         for(int x = left_x; x >= 0; x--) {
-            if (binary_pers_image[y][x] == 1 || x == 1) {
+            if (binary_pers_image[y][x] == 255 || x == 1) {
                 left_distance_line_pers[distance_index_pers][0] = x;
                 left_distance_line_pers[distance_index_pers][1] = y;
                 left_distance_pers[distance_index_pers][0] = left_x - x;
@@ -673,7 +675,7 @@ void get_distance_line_pers(){
             }
         }
         for(int x = right_x; x < 40; x++) {
-            if (binary_pers_image[y][x] == 1 || x == 60) {
+            if (binary_pers_image[y][x] == 255 || x == 60) {
                 right_distance_line_pers[distance_index_pers][0] = x;
                 right_distance_line_pers[distance_index_pers][1] = y;
                 right_distance_pers[distance_index_pers][0] = x - right_x;
@@ -762,17 +764,13 @@ uint8_t get_otsu_threshold(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, c
 // 补边
 void draw_rectan(){
     uint8_t i;
-    road_color = 1;
-    border_color = 0;
+    border_color = 255;
     for (i = 0; i < 60; i++){
         binary_image[i][0] = border_color;
-        binary_image[i][1] = border_color;
         binary_image[i][80 - 1] = border_color;
-        binary_image[i][80 - 2] = border_color;
     }
     for (i = 0; i < 80; i++){
         binary_image[0][i] = border_color;
-        binary_image[1][i] = border_color;
     }
 }
 
@@ -796,7 +794,7 @@ int get_border_line(int detect_count_max) {
 
 
     road_color = 0;
-    border_color = 1;
+    border_color = 255;
 
 
     memset(left_border, 0, sizeof(left_border));
@@ -806,7 +804,7 @@ int get_border_line(int detect_count_max) {
     // 初始边界点在道路内
     int first_x;
     int first_y = 58;
-    for (first_x = (bottom_start_x + bottom_end_x) / 2; first_x > 0; first_x--) {
+    for (first_x = (bottom_start_x + bottom_end_x) / 2; first_x >= 0; first_x--) {
         if (binary_image[first_y][first_x] == road_color && binary_image[first_y][first_x - 1] != road_color) {
             left_border[left_border_index][0] = first_x;
             left_border[left_border_index][1] = first_y;
@@ -827,13 +825,14 @@ int get_border_line(int detect_count_max) {
     right_y = right_border[right_border_index][1];
     left_dir = -1;  // 重置左边界方向
     right_dir = -1;  // 重置右边界方向
+    vofa_udp.printf(":%d,%d,%d,%d,%d,%d\n",left_x,left_y,right_x,right_y,bottom_start_x,bottom_end_x);
     for(detect_count = 0; detect_count < detect_count_max; detect_count++) {
         // 左边界
         if(detect_count > 15 && sqrt((left_x - left_border[left_border_index-5][0]) * (left_x - left_border[left_border_index-5][0]) + (left_y - left_border[left_border_index-5][1]) * (left_y - left_border[left_border_index-5][1])) < 4){
             if(left_skip_index == 0){
                 left_skip_index = left_border_index;
             }
-        } else if(left_y < 3 || (detect_count > 15 && left_x < 4)) {
+        } else if(left_y > 77 || (detect_count > 25 && left_x < 3)) {
             if(left_skip_index == 0){
                 left_skip_index = left_border_index;
             }
@@ -892,7 +891,7 @@ int get_border_line(int detect_count_max) {
             if(right_skip_index == 0){
                 right_skip_index = right_border_index;
             }
-        } else if(right_y < 3 || (detect_count > 15 && right_x > 76)) {
+        } else if(right_y < 2 || (detect_count > 25 && right_x > 77)) {
             if(right_skip_index == 0){
                 right_skip_index = right_border_index;
             }
@@ -983,7 +982,7 @@ int get_border_line_pers(int detect_count_max) {
 
 
     road_color = 0;
-    border_color = 1;
+    border_color = 255;
 
 
     memset(left_border_pers, 0, sizeof(left_border_pers));

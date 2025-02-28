@@ -15,17 +15,15 @@ std::atomic<bool> running{true};      // 控制线程运行标志
 cv::Mat frame;
 cv::Mat result_image;
 uchar image[120][160];
-auto udp_transport = std::make_unique<TCPTransport>("0.0.0.0", 1347);
-auto vofa = VOFA(std::move(udp_transport));
+auto tcp_transport = std::make_unique<TCPTransport>("0.0.0.0", 1347);
+auto vofa = VOFA(std::move(tcp_transport));
+auto udp_transport = std::make_unique<UDPTransport>("192.168.5.194", 1349);
+auto vofa_udp = VOFA(std::move(udp_transport));
 void* realtime_task(void* arg) {
     // 设置实时线程优先级
     struct sched_param param = {.sched_priority = 99};
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
 
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(0, &cpuset);
-    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
     // 创建高精度定时器
     int timer_fd = timerfd_create(CLOCK_MONOTONIC, 0);
@@ -50,8 +48,8 @@ void* realtime_task(void* arg) {
     int incision = 6;
     int incision_max = 6;
     cv::VideoCapture cap;
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, 320);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 240);
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, 160);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 120);
     cap.set(cv::CAP_PROP_FPS, 120);
     cap.open(0);
     cv::Mat myframe;
@@ -63,19 +61,17 @@ void* realtime_task(void* arg) {
         if (num_events > 0 && events[0].data.fd == timer_fd) {
             uint64_t expirations;
             read(timer_fd, &expirations, sizeof(expirations));
-
+            // end = std::chrono::steady_clock::now();
+            // std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+            // start = std::chrono::steady_clock::now();
+            // LOGI("timer_event", "距离上次事件%.2lfms", time_used.count() * 1000);
+            // if(std::abs(time_used.count() * 1000 - timer_period) > 1) {
+            //     LOGW("timer_event", "定时器周期不准确，误差: %.2lfms", time_used.count() * 1000 - timer_period);
+            // }
+            MEASURE_TIME("rt task", {
             cap >> frame;
 
-
-            end = std::chrono::steady_clock::now();
-            std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
-            start = std::chrono::steady_clock::now();
-            fprintf(stdout,"timer_event 距离上次事件%.2lfms\n", time_used.count() * 1000);
-            LOGI("timer_event", "距离上次事件%.2lfms", time_used.count() * 1000);
-            if(std::abs(time_used.count() * 1000 - timer_period) > 1) {
-                fprintf(stdout,"timer_event 定时器周期不准确，误差: %.2lfms\n", time_used.count() * 1000 - timer_period);
-                LOGW("timer_event", "定时器周期不准确，误差: %.2lfms", time_used.count() * 1000 - timer_period);
-            }
+            });
             frame.copyTo(myframe);
             cv::extractChannel(myframe, myframe, 0);  // 提取灰度图像
             cv::resize(myframe, myframe, cv::Size(80,60));
@@ -84,11 +80,10 @@ void* realtime_task(void* arg) {
             memcpy((uint8_t *) binary_image, (const uint8_t *) contrast_image, 80 * 60);
             my_cv2_doubleThreshold((uint8_t *) binary_image, 80, 0, 0, 80, 60, canny_lowThreshold, canny_highThreshold);
             my_cv2_checkConnectivity((uint8_t *) binary_image, 80, 0, 0, 80, 60);
-            my_cv2_threshold((uint8_t *) binary_image, 80, 0, 0, 80, 60, 127, 1);
+            my_cv2_threshold((uint8_t *) binary_image, 80, 0, 0, 80, 60, 127, 255);
             memcpy((uint8_t *) gray_binary_image, (const uint8_t *) gray_image, 80 * 60);
-            my_cv2_threshold((uint8_t *) gray_binary_image, 80, 0, 0, 80, 60, 128, 1);
+            my_cv2_threshold((uint8_t *) gray_binary_image, 80, 0, 0, 80, 60, 128, 255);
             // vofa.imwrite((uint8_t *)gray_binary_image, 80, 60);
-            memcpy(result_image.data, gray_image, 80 * 60);
             bottom_start_end_x_get();
 
             get_max_middle_line_height();
@@ -107,8 +102,8 @@ void* realtime_task(void* arg) {
             check_garage_and_obstacle();
             draw_rectan();
             int detect_count_max = get_border_line(80);
-            vofa.printf(":%d,%d\n", bottom_start_x,bottom_end_x);
-            // vofa.imwrite((uint8_t *)contrast_image, 80, 60);
+            memcpy(result_image.data, binary_image, 80 * 60);
+            vofa.imwrite((uint8_t *)contrast_image, 80, 60);
         }
     }
 
@@ -131,7 +126,7 @@ void *non_realtime_task(void *arg) {
     std::vector<uchar> jpg;
     while (running) {
             frame.copyTo(my_frame);
-//            MEASURE_TIME("convert gray", {
+            // MEASURE_TIME("non rt task", {
                 cvtColor(my_frame, gray, cv::COLOR_BGR2GRAY);
 //            });
             // MEASURE_TIME("detect_time", {
@@ -156,7 +151,7 @@ void *non_realtime_task(void *arg) {
                 tft180_draw_border_line(gray3ch, 0, 0, right_border, cv::Vec3b(0,255,0));
                 tft180_draw_border_line(gray3ch, 0, 0, middle_line, cv::Vec3b(0,0,255));
             // MEASURE_TIME("http write", {
-                vofa.imwrite(gray3ch);
+                // vofa.imwrite(my_frame);
                 // http << my_frame;
             // });
     }
@@ -164,15 +159,15 @@ void *non_realtime_task(void *arg) {
 }
 
 void signal_handler(int sig) {
-    g_signal_received = sig;
     running = false;
+    g_signal_received = sig;
     log_shutdown();
 }
 
 int main()
 {
     // 注册信号处理
-    struct sigaction sa;
+    struct sigaction sa{};
     sa.sa_handler = signal_handler;
     sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
@@ -189,7 +184,7 @@ int main()
     pthread_t nrt_thread;
     pthread_create(&rt_thread, nullptr, realtime_task, nullptr);
     std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // 运行1秒
-    pthread_create(&nrt_thread, nullptr, non_realtime_task, nullptr);
+    // pthread_create(&nrt_thread, nullptr, non_realtime_task, nullptr);
 
     std::this_thread::sleep_for(std::chrono::seconds(100)); // 运行100秒
 
