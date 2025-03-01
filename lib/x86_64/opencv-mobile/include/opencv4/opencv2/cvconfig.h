@@ -135,7 +135,7 @@
 /* #undef HAVE_VA_INTEL */
 
 /* Lapack */
-#define HAVE_LAPACK
+/* #undef HAVE_LAPACK */
 
 /* Library was compiled with functions instrumentation */
 /* #undef ENABLE_INSTRUMENTATION */
