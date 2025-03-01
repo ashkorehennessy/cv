@@ -1338,10 +1338,21 @@ void calculate_contrast_x8(uint8_t *dst_image, const uint8_t *src_image, int16_t
     }
 }
 
-void tft180_draw_border_line(cv::Mat& dst_image, uint16_t x, uint16_t y, const uint8_t line[][2], cv::Vec3b color) {
-    uint16_t i = 0;
-    while(line[i][0] || line[i][1]) {
-        dst_image.at<cv::Vec3b>(line[i][1] + y, line[i][0] + x) = color;
+void tft180_draw_border_line(cv::Mat& image, int x, int y, const uint8_t line[][2], cv::Scalar color) {
+    const int max_points = 100;
+    int i = 0;
+
+    while (i < max_points && (line[i][0] != 0 || line[i][1] != 0)) {
+        const int px = x + line[i][0];
+        const int py = y + line[i][1];
+
+        if (px >= 0 && px < image.cols && py >= 0 && py < image.rows) {
+            image.at<cv::Vec3b>(py, px) = cv::Vec3b(
+                color[0],  // Blue
+                color[1],  // Green
+                color[2]   // Red
+            );
+        }
         i++;
     }
 }

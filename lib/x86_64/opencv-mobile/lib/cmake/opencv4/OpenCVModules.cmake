@@ -59,7 +59,7 @@ endif()
 add_library(opencv_core STATIC IMPORTED)
 
 set_target_properties(opencv_core PROPERTIES
-  INTERFACE_LINK_LIBRARIES "\$<LINK_ONLY:dl>;\$<LINK_ONLY:m>;\$<LINK_ONLY:pthread>;\$<LINK_ONLY:rt>;/usr/lib/libz.so;OpenMP::OpenMP_CXX"
+  INTERFACE_LINK_LIBRARIES "\$<LINK_ONLY:dl>;\$<LINK_ONLY:m>;\$<LINK_ONLY:pthread>;\$<LINK_ONLY:rt>;/usr/lib/libz.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_sequential.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_core.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_sequential.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_core.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_sequential.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_core.so;\$<LINK_ONLY:-lpthread>;\$<LINK_ONLY:-lm>;\$<LINK_ONLY:-ldl>;OpenMP::OpenMP_CXX"
 )
 
 # Create imported target opencv_flann
@@ -101,7 +101,7 @@ set_target_properties(opencv_highgui PROPERTIES
 add_library(opencv_calib3d STATIC IMPORTED)
 
 set_target_properties(opencv_calib3d PROPERTIES
-  INTERFACE_LINK_LIBRARIES "opencv_core;opencv_flann;opencv_imgproc;opencv_features2d;opencv_core;opencv_flann;opencv_imgproc;opencv_features2d;\$<LINK_ONLY:dl>;\$<LINK_ONLY:m>;\$<LINK_ONLY:pthread>;\$<LINK_ONLY:rt>"
+  INTERFACE_LINK_LIBRARIES "opencv_core;opencv_flann;opencv_imgproc;opencv_features2d;opencv_core;opencv_flann;opencv_imgproc;opencv_features2d;\$<LINK_ONLY:dl>;\$<LINK_ONLY:m>;\$<LINK_ONLY:pthread>;\$<LINK_ONLY:rt>;/opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_sequential.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_core.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_sequential.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_core.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_sequential.so;/opt/intel/oneapi/mkl/latest/lib/libmkl_core.so;\$<LINK_ONLY:-lpthread>;\$<LINK_ONLY:-lm>;\$<LINK_ONLY:-ldl>"
 )
 
 # Create imported target opencv_video

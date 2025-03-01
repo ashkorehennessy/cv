@@ -14,7 +14,7 @@ const int timer_period = 10;  // 定时器周期(ms)
 std::atomic<bool> running{true};      // 控制线程运行标志
 cv::Mat frame;
 cv::Mat result_image;
-uchar image[120][160];
+uint8_t    gray1ch_image[60][80];
 auto tcp_transport = std::make_unique<TCPTransport>("0.0.0.0", 1347);
 auto vofa = VOFA(std::move(tcp_transport));
 auto udp_transport = std::make_unique<UDPTransport>("192.168.5.194", 1349);
@@ -48,8 +48,8 @@ void* realtime_task(void* arg) {
     int incision = 6;
     int incision_max = 6;
     cv::VideoCapture cap;
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, 160);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 120);
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, 320);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 240);
     cap.set(cv::CAP_PROP_FPS, 120);
     cap.open(0);
     cv::Mat myframe;
@@ -68,12 +68,10 @@ void* realtime_task(void* arg) {
             // if(std::abs(time_used.count() * 1000 - timer_period) > 1) {
             //     LOGW("timer_event", "定时器周期不准确，误差: %.2lfms", time_used.count() * 1000 - timer_period);
             // }
-            MEASURE_TIME("rt task", {
+            // MEASURE_TIME("rt task", {
             cap >> frame;
-
-            });
+            // vofa.imwrite(frame);
             frame.copyTo(myframe);
-            cv::extractChannel(myframe, myframe, 0);  // 提取灰度图像
             cv::resize(myframe, myframe, cv::Size(80,60));
             memcpy(gray_image, myframe.data, 80 * 60);
             calculate_contrast_x8((uint8_t *)contrast_image, (const uint8_t *)gray_image, 80, 60);
@@ -102,8 +100,8 @@ void* realtime_task(void* arg) {
             check_garage_and_obstacle();
             draw_rectan();
             int detect_count_max = get_border_line(80);
-            memcpy(result_image.data, binary_image, 80 * 60);
-            vofa.imwrite((uint8_t *)contrast_image, 80, 60);
+            // });
+            // vofa.imwrite((uint8_t *)contrast_image, 80, 60);
         }
     }
 
@@ -114,45 +112,41 @@ void* realtime_task(void* arg) {
 
 // 非实时任务线程函数
 void *non_realtime_task(void *arg) {
-//    cv::VideoWriter http;
-    //    http.open("httpjpg", 7766);
-    cv::VideoWriter http;
-    http.open("httpjpg",7766);
-    auto atag = mytag("tag36h11", 1, 0, 1, false, false);
+    auto atag = mytag("tag36h11", 1.5, 0, 1, false, false);
     int id;
-    cv::Mat my_frame;
     cv::Mat gray;
+    cv::Mat gray1ch(60, 80, CV_8UC1, (void*)gray1ch_image);
+    cv::Mat gray3ch;
     double distance;
     std::vector<uchar> jpg;
     while (running) {
-            frame.copyTo(my_frame);
+            frame.copyTo(gray);
             // MEASURE_TIME("non rt task", {
-                cvtColor(my_frame, gray, cv::COLOR_BGR2GRAY);
-//            });
-            // MEASURE_TIME("detect_time", {
-                atag.detect(gray);
+                memcpy(gray1ch_image, gray_image, 80 * 60);
+                cv::cvtColor(gray1ch, gray3ch, cv::COLOR_GRAY2BGR);
             // });
-//            MEASURE_TIME("getclosettagindex", {
+            MEASURE_TIME("detect_time", {
+                atag.detect(gray);
+            });
+            // MEASURE_TIME("getclosettagindex", {
                 atag.getClosetTagIndex();
 //            });
 //            MEASURE_TIME("draw", {
-                atag.draw(my_frame);
+                atag.draw(gray3ch, 0.25);
 //            });detect_count_max:
 //            MEASURE_TIME("getid", {
                 id = atag.getClosetTagID();
 //            });
 //            MEASURE_TIME("getdistance", {
                 distance = atag.getClosetTagDistance(1500);
-                cv::putText(result_image, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
+                // cv::putText(gray3ch, std::to_string(distance), cv::Point(0, 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0xff, 0), 2);
 //            });
-                cv::Mat gray3ch;
-                cv::merge(std::vector<cv::Mat>{result_image, result_image, result_image}, gray3ch);
-                tft180_draw_border_line(gray3ch, 0, 0, left_border, cv::Vec3b(0,255,0));
-                tft180_draw_border_line(gray3ch, 0, 0, right_border, cv::Vec3b(0,255,0));
-                tft180_draw_border_line(gray3ch, 0, 0, middle_line, cv::Vec3b(0,0,255));
+                tft180_draw_border_line(gray3ch, 0,0,left_border, cv::Scalar(0, 0xff, 0));
+                tft180_draw_border_line(gray3ch, 0, 0, right_border, cv::Scalar(0, 0xff, 0));
+                tft180_draw_border_line(gray3ch, 0, 0, middle_line, cv::Scalar(0, 0, 0xff));
             // MEASURE_TIME("http write", {
-                // vofa.imwrite(my_frame);
-                // http << my_frame;
+                vofa.imwrite(gray3ch);
+                // http << gray3ch;
             // });
     }
     return nullptr;
@@ -178,15 +172,15 @@ int main()
         return 1;
     }
     LOGW("MAIN", "Application starting...");
-
+    system("v4l2-ctl -d /dev/video0 -c contrast=100 -c gamma=500 -c auto_exposure=1 -c exposure_time_absolute=100");
     // 创建posix线程
     pthread_t rt_thread;
     pthread_t nrt_thread;
     pthread_create(&rt_thread, nullptr, realtime_task, nullptr);
     std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // 运行1秒
-    // pthread_create(&nrt_thread, nullptr, non_realtime_task, nullptr);
+    pthread_create(&nrt_thread, nullptr, non_realtime_task, nullptr);
 
-    std::this_thread::sleep_for(std::chrono::seconds(100)); // 运行100秒
+    std::this_thread::sleep_for(std::chrono::seconds(1000)); // 运行100秒
 
     running = false; // 停止线程
 

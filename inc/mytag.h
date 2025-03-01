@@ -52,6 +52,14 @@ public:
     void draw(cv::Mat &frame);
 
     /**
+     * @brief 在图像上绘制检测到的AprilTag标签
+     *
+     * @param frame 输入的图像帧
+     * @param zoom 坐标缩放系数
+     */
+    void draw(cv::Mat &frame, double zoom);
+
+    /**
      * @brief 清理检测结果
      */
     void clean();
